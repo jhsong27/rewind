@@ -2368,6 +2368,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	/* For REWIND operation */
 	int rewind_fork = 0;
 	int become_null = 0;
+	int reused = 0;
 
 	/* For REWIND operation */
 	if (mm->owner->rewindable == 1 || current->exit_print == 1)
@@ -3677,6 +3678,7 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	vm_fault_t ret;
+	pte_t *clone_pte;	// For REWIND operation
 
 	/* For REWIND profiling */
 	if (vma->vm_mm->owner->rewindable == 1 || current->exit_print == 1)
@@ -4884,7 +4886,7 @@ unsigned long long tmp_pud;
 unsigned long long tmp_pmd;
 unsigned long long tmp_pte;
 
-unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
+static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		pmd_t *pmd, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
 	struct mm_struct *mm = vma->vm_mm;
 	pte_t *pte;
@@ -4910,8 +4912,8 @@ unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_struct *vma
 		clearing = 0;
 
 		if (rewind_flag == 1) {
-			tmp = rdtsc();
 			pte_t *rpte = pte + REWIND_AREA;
+			tmp = rdtsc();
 			if (pte_write(*rpte)) {
 				if (!(pte_flags(*rpte) & _PAGE_SOFTW2))
 					printk(KERN_INFO "REWIND(pte): Not rewindable rewind pte(w)... 0x%lx / 0x%lx\n",
@@ -5015,7 +5017,7 @@ unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_struct *vma
 	return addr;
 }
 
-unsigned long rewind_pmd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
+static inline unsigned long rewind_pmd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		pud_t *pud, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
 	pmd_t *pmd;
 	unsigned long next;
@@ -5037,7 +5039,7 @@ unsigned long rewind_pmd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma
 	return addr;
 }
 
-unsigned long rewind_pud_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
+static inline unsigned long rewind_pud_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		p4d_t *p4d, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
 	pud_t *pud;
 	unsigned long next;
@@ -5061,7 +5063,7 @@ unsigned long rewind_pud_walk(struct mmu_gather *tlb, struct vm_area_struct *vma
 	return addr;
 }
 
-unsigned long rewind_p4d_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
+static inline unsigned long rewind_p4d_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		pgd_t *pgd, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
 	p4d_t *p4d;
 	unsigned long next;

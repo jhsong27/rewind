@@ -2107,7 +2107,7 @@ static __latent_entropy struct task_struct *copy_process(
 
 	p->rewind_vma_alloc = 0;
 	p->rewind_vma_reuse = 0;
-	p->rewind_reuser_page = 0;
+	p->rewind_reused_page = 0;
 
 	if (current->child_print == 1)
 		p->exit_print = 1;

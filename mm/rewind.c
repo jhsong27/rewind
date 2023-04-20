@@ -11,7 +11,7 @@
 struct task_struct *rewind_kth;
 unsigned long rewind_pf_cnt;
 static LIST_HEAD(pf_rewind_list);
-static DEFINE_SPINLOCK(pf_rewind_lock);
+//static DEFINE_SPINLOCK(pf_rewind_lock);
 
 struct pf_rewind_info
 {

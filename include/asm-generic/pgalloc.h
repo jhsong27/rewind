@@ -134,12 +134,13 @@ static inline pgtable_t pte_alloc_one(struct mm_struct *mm)
  */
 static inline void pte_free(struct mm_struct *mm, struct page *pte_page)
 {
+	/* For REWIND operation */
+	struct task_struct *own = mm->owner;
+
 	pgtable_pte_page_dtor(pte_page);
 	//__free_page(pte_page);
 	
 	/* For REWIND operation */
-	struct task_struct *own = mm->owner;
-
 	if (own && (own->rewindable == 1))
 		__free_pages(pte_page, 1);
 	else

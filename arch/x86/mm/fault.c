@@ -1288,6 +1288,7 @@ void do_user_addr_fault(struct pt_regs *regs,
 	struct mm_struct *mm;
 	vm_fault_t fault, major = 0;
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+	unsigned long long time_stamp;
 
 	tsk = current;
 	mm = tsk->mm;
@@ -1438,10 +1439,10 @@ good_area:
 	 * userland). The return to userland is identified whenever
 	 * FAULT_FLAG_USER|FAULT_FLAG_KILLABLE are both set in flags.
 	 */
-	unsigned long long time_stamp = rdtsc();
+	time_stamp = rdtsc();
 	fault = handle_mm_fault(vma, address, flags);
 	if (mm->owner)
-		mm->owner->rewind_time += rdtst() - time_stamp;
+		mm->owner->rewind_time += rdtsc() - time_stamp;
 	major |= fault & VM_FAULT_MAJOR;
 
 	/*
