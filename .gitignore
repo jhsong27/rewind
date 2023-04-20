@@ -114,8 +114,6 @@ series
 # cscope files
 cscope.*
 ncscope.*
-cscope.out.in
-cscope.out.po
 
 # gnu global files
 GPATH
