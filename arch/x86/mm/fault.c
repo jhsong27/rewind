@@ -1438,7 +1438,10 @@ good_area:
 	 * userland). The return to userland is identified whenever
 	 * FAULT_FLAG_USER|FAULT_FLAG_KILLABLE are both set in flags.
 	 */
+	unsigned long long time_stamp = rdtsc();
 	fault = handle_mm_fault(vma, address, flags);
+	if (mm->owner)
+		mm->owner->rewind_time += rdtst() - time_stamp;
 	major |= fault & VM_FAULT_MAJOR;
 
 	/*
