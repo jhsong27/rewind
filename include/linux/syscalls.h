@@ -753,8 +753,8 @@ asmlinkage long sys_sysinfo(struct sysinfo __user *info);
 asmlinkage long sys_checkpoint(unsigned long __user num);
 asmlinkage long sys_rewind(unsigned long __user num);
 asmlinkage long sys_rewindable(void);
-asmlinkage long sys_rewind_print(void);
-asmlinkage long sys_rewind_child(void);
+asmlinkage long sys_rewind_dbg(void);
+asmlinkage long sys_fork_dbg(void);
 
 /* ipc/mqueue.c */
 asmlinkage long sys_mq_open(const char __user *name, int oflag, umode_t mode, struct mq_attr __user *attr);

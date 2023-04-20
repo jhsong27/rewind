@@ -100,7 +100,7 @@ SYSCALL_DEFINE0(rewindable) {
 	return 0;
 }
 
-SYSCALL_DEFINE0(rewind_print) {
+SYSCALL_DEFINE0(rewind_dbg) {
 	printk(KERN_INFO "REWIND(TIME): Current time = %llu, Total pf time = %llu\n", ktime_get_real_ns(), current->rewind_time);
 	printk(KERN_INFO "REWIND(alloc_vma): vma_alloc=%lu, vma_reuse=%lu\n", current->rewind_vma_alloc, current->rewind_vma_reuse);
 	current->rewind_vma_reuse = 0;
@@ -109,7 +109,7 @@ SYSCALL_DEFINE0(rewind_print) {
 	return 0;
 }
 
-SYSCALL_DEFINE0(rewind_child) {
+SYSCALL_DEFINE0(fork_dbg) {
 	current->child_print = 1;
 	return 0;
 }

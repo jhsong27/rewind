@@ -406,7 +406,7 @@
 #
 
 548	64	checkpoint		__x64_sys_checkpoint
-549	64	rewind			__x64_sys_checkpoint
-550	64	rewindable		__x64_sys_checkpoint
-551	64	rewind_dbg		__x64_sys_checkpoint
-552	64	fork_dbg		__x64_sys_checkpoint
+549	64	rewind			__x64_sys_rewind
+550	64	rewindable		__x64_sys_rewindable
+551	64	rewind_dbg		__x64_sys_rewind_dbg
+552	64	fork_dbg		__x64_sys_fork_dbg
