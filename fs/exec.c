@@ -64,6 +64,8 @@
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
 
+#include <linux/mm_rewind.h>	// For REWIND operation
+
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
@@ -1224,6 +1226,11 @@ killed:
 	sig->notify_count = 0;
 	read_unlock(&tasklist_lock);
 	return -EAGAIN;
+}
+
+int rewind_de_thread(struct task_struct *tsk)
+{
+	return de_thread(tsk);
 }
 
 char *__get_task_comm(char *buf, size_t buf_size, struct task_struct *tsk)

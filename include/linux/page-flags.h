@@ -163,6 +163,9 @@ enum pageflags {
 
 	/* non-lru isolated movable page */
 	PG_isolated = PG_reclaim,
+
+	/* REWIND: 8K PTE table */
+	PG_rewind,
 };
 
 #ifndef __GENERATING_BOUNDS_H

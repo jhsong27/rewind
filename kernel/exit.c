@@ -717,6 +717,11 @@ void __noreturn do_exit(long code)
 	struct task_struct *tsk = current;
 	int group_dead;
 
+	/* For REWIND operation */
+	if (tsk->exit_print == 1)
+		printk(KERN_INFO "REWIND(exit): PF TIME = %llu ns\n", tsk->rewind_time);
+	tsk->rewindable = 0;	// Stop recording change state
+
 	profile_task_exit(tsk);
 	kcov_task_exit(tsk);
 

@@ -2674,6 +2674,13 @@ void filemap_map_pages(struct vm_fault *vmf,
 		last_pgoff = xas.xa_index;
 		if (alloc_set_pte(vmf, NULL, page))
 			goto unlock;
+
+		/* For REWIND operation */
+		if ((vmf->vma->vm_mm->owner->rewindable == 1) && (vmf->vma->vm_mm->owner->rewind_cp == 0)) {
+			if (!(pte_flags(*((vmf->pte) + REWIND_AREA)) & _PAGE_SOFTW2))
+				memcpy((vmf->pte) + REWIND_AREA, vmf->pte, sizeof(pte_t));
+		}
+
 		unlock_page(page);
 		goto next;
 unlock:

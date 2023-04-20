@@ -48,6 +48,8 @@
 #include <linux/oom.h>
 #include <linux/sched/mm.h>
 
+#include <linux/mm_rewind.h>	// For REWIND operation
+
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
@@ -1402,6 +1404,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 {
 	struct mm_struct *mm = current->mm;
 	int pkey = 0;
+	unsigned long orig_addr = addr;		// For REWIND operation
 
 	*populate = 0;
 
@@ -1574,11 +1577,32 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			vm_flags |= VM_NORESERVE;
 	}
 
+	/* For REWIND operation */
+	if (mm->owner && mm->owner->rewind_cnt > 0 && orig_addr == 0 && !file)
+		vm_flags = vm_flags | VM_NO_ADDR;
+
 	addr = mmap_region(file, addr, len, vm_flags, pgoff, uf);
+
+	/* For REWIND operation */
+	if (mm->owner && mm->owner->rewind_cnt > 0 && orig_addr == 0 && !file)
+		vm_flags = (vm_flags & (~(VM_NO_ADDR)));
+
 	if (!IS_ERR_VALUE(addr) &&
 	    ((vm_flags & VM_LOCKED) ||
 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
 		*populate = len;
+
+	/* For REWIND operation */
+	if (mm->owner && mm->owner->rewind_cnt > 0) {
+		if (orig_addr == 0 && !file) {
+			struct vm_area_struct *vma;
+
+			vma = find_vma(mm, addr);
+			if (vma && mm->owner->pid == current->pid)
+				vma->rewindable = 1;
+		}
+	}
+	
 	return addr;
 }
 
@@ -1718,6 +1742,21 @@ static inline int accountable_mapping(struct file *file, vm_flags_t vm_flags)
 	return (vm_flags & (VM_NORESERVE | VM_SHARED | VM_WRITE)) == VM_WRITE;
 }
 
+void reuse_vma_clear(struct vm_area_struct *vma) {
+
+	struct mmu_gather tlb;
+	struct mmu_notifier_range range;
+
+	tlb_gather_mmu(&tlb, vma->vm_mm, 0, -1);
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0 , vma, vma->vm_mm, 0, -1);
+	mmu_notifier_invalidate_range_start(&range);
+
+	rewind_pgd_walk(&tlb, vma, vma->vm_start, vma->vm_end, 1);
+
+	mmu_notifier_invalidate_range_end(&range);
+	tlb_finish_mmu(&tlb, 0, -1);
+}
+
 unsigned long mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff,
 		struct list_head *uf)
@@ -1760,13 +1799,43 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vm_flags |= VM_ACCOUNT;
 	}
 
-	/*
-	 * Can we just expand an old mapping?
-	 */
-	vma = vma_merge(mm, prev, addr, addr + len, vm_flags,
-			NULL, file, pgoff, NULL, NULL_VM_UFFD_CTX);
-	if (vma)
-		goto out;
+	/* REWIND: reuse rewound anonymous VMA */
+	if (mm->owner && mm->owner->rewind_cnt > 0 && !file && (vm_flags & VM_NO_ADDR)) {
+		struct vm_area_struct *iter_vma;
+
+		for (iter_vma = mm->mmap; iter_vma; iter_vma = iter_vma->vm_next) {
+			if (iter_vma->rewind_used == 0
+					&& iter_vma->rewindable == 1
+					&& !iter_vma->vm_file
+					&& len == (iter_vma->vm_end - iter_vma->vm_start)
+					&& iter_vma->rewind_flags == (vm_flags & ~(VM_NO_ADDR))) {
+				addr = iter_vma->vm_start;
+				iter_vma->rewind_used = 1;
+				iter_vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));
+				iter_vma->rewind = mm->owner->rewind_cnt;
+				vma = iter_vma;
+				reuse_vma_clear(vma);
+
+				mm->owner->rewind_vma_reuse++;
+				mm->owner->rewind_reused_size += vma->anon_size;
+				goto reuse;
+
+			}
+
+		}
+
+	}
+
+	/* REWIND: pass the path after checkpoint */
+	if (current->rewind_cnt < 1) {
+		/*
+		 * Can we just expand an old mapping?
+		 */
+		vma = vma_merge(mm, prev, addr, addr + len, vm_flags,
+				NULL, file, pgoff, NULL, NULL_VM_UFFD_CTX);
+		if (vma)
+			goto out;
+	}
 
 	/*
 	 * Determine the object being mapped and call the appropriate
@@ -1781,7 +1850,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 
 	vma->vm_start = addr;
 	vma->vm_end = addr + len;
-	vma->vm_flags = vm_flags;
+	//vma->vm_flags = vm_flags;
+	vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));	// For REWIND operation
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 	vma->vm_pgoff = pgoff;
 
@@ -1851,6 +1921,13 @@ out:
 	if (file)
 		uprobe_mmap(vma);
 
+	vma->anon_size = 0;
+	if (mm->owner)
+		vma->rewind = mm->owner->rewind_cnt;
+	else
+		vma->rewind = 0;
+
+reuse:
 	/*
 	 * New (or expanded) vma always get soft dirty status.
 	 * Otherwise user-space soft-dirty page tracker won't
@@ -1859,6 +1936,14 @@ out:
 	 * a completely new data area).
 	 */
 	vma->vm_flags |= VM_SOFTDIRTY;
+
+	vma->rewind_used = 1;
+	vma->rewindable = 0;
+	vma->rewind_flags = (vm_flags & (~(VM_NO_ADDR)));
+	vma->pid = current->pid;
+
+	if (mm->owner)
+		mm->owner->rewind_vma_alloc++;
 
 	vma_set_page_prot(vma);
 
@@ -2766,6 +2851,20 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	vma = find_vma(mm, start);
 	if (!vma)
 		return 0;
+
+	/* For REWIND operation
+	 * Do nothing if anonymous vma that create after checkpoint (keep this vma and reuse it)
+	 * unmap when this process after start of the "do_exit"
+	 */
+
+	if (current->rewind_cnt > 0 && vma_is_anonymous(vma)) {
+		if (vma->rewindable == 1 && vma->rewind > 0)
+			return 0;
+	}
+
+	if (current->rewind_cnt > 0 && vma->rewind == 0)
+		return 0;
+
 	prev = vma->vm_prev;
 	/* we have  start < vma->vm_end  */
 
