@@ -4891,7 +4891,7 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_stru
 	struct mm_struct *mm = vma->vm_mm;
 	pte_t *pte;
 	spinlock_t *ptl;
-	struct page *pg;
+	struct page *pg = NULL;
 	unsigned long long pte_time, clear_time, flush_time, tmp;
 	int erase_page = 0;
 	int copy_page = 0;
