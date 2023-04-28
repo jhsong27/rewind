@@ -12,6 +12,9 @@
 #define REWIND_WP_REUSE		(7)
 #define REWIND_WP_SHARED	(9)
 
+#define	DO_CHECKPOINT	(0)
+#define	DO_REWIND	(1)
+
 extern struct task_struct *rewind_kth;
 extern unsigned long rewind_pf_cnt;
 

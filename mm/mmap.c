@@ -1818,6 +1818,15 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 
 				mm->owner->rewind_vma_reuse++;
 				mm->owner->rewind_reused_size += vma->anon_size;
+
+				/* 
+				 * TODO:
+				 * The code for DEBUG
+				 * Should be removed
+				 */
+				printk(KERN_INFO "REWIND VMA REUSE: returned mmap address is %lu, size is %lu\n",
+						addr, vma->vm_end - vma->vm_start);
+
 				goto reuse;
 
 			}

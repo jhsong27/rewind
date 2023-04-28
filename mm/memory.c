@@ -4880,15 +4880,19 @@ void ptlock_free(struct page *page)
 #endif
 
 /* For REWIND operation */
-unsigned long long tmp_pgd;
-unsigned long long tmp_p4d;
-unsigned long long tmp_pud;
-unsigned long long tmp_pmd;
-unsigned long long tmp_pte;
+//unsigned long long tmp_pgd;
+//unsigned long long tmp_p4d;
+//unsigned long long tmp_pud;
+//unsigned long long tmp_pmd;
+//unsigned long long tmp_pte;
 
-static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		pmd_t *pmd, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
+static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
+				struct vm_area_struct *vma, pmd_t *pmd,
+				unsigned long addr, unsigned long end,
+				unsigned long rewind_flag)
+{
 	struct mm_struct *mm = vma->vm_mm;
+	pte_t *start_pte;
 	pte_t *pte;
 	spinlock_t *ptl;
 	struct page *pg = NULL;
@@ -4900,7 +4904,9 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_stru
 	clear_time = 0;
 	flush_time = 0;
 
-	pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+	start_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+	pte = start_pte;
+	flush_tlb_batched_pending(mm);
 	arch_enter_lazy_mmu_mode();
 	do {
 		/* PGT Copy */
@@ -4911,7 +4917,10 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_stru
 		copy_page = 0;
 		clearing = 0;
 
-		if (rewind_flag == 1) {
+		/*
+		 * rewind_flag is DO_CHECKPOINT or DO_REWIND
+		 */
+		if (rewind_flag == DO_REWIND) {
 			pte_t *rpte = pte + REWIND_AREA;
 			tmp = rdtsc();
 			if (pte_write(*rpte)) {
@@ -5004,7 +5013,7 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_stru
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 
 	arch_leave_lazy_mmu_mode();
-	pte_unmap_unlock(pte, ptl);
+	pte_unmap_unlock(start_pte, ptl);
 
 	flush_time = rdtsc();
 	tlb_flush_mmu(tlb);
@@ -5017,8 +5026,11 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb, struct vm_area_stru
 	return addr;
 }
 
-static inline unsigned long rewind_pmd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		pud_t *pud, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
+static inline unsigned long rewind_pmd_walk(struct mmu_gather *tlb,
+				struct vm_area_struct *vma, pud_t *pud,
+				unsigned long addr, unsigned long end,
+				unsigned long rewind_flag)
+{
 	pmd_t *pmd;
 	unsigned long next;
 
@@ -5039,21 +5051,23 @@ static inline unsigned long rewind_pmd_walk(struct mmu_gather *tlb, struct vm_ar
 	return addr;
 }
 
-static inline unsigned long rewind_pud_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		p4d_t *p4d, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
+static inline unsigned long rewind_pud_walk(struct mmu_gather *tlb,
+				struct vm_area_struct *vma, p4d_t *p4d,
+				unsigned long addr, unsigned long end,
+				unsigned long rewind_flag)
+{
 	pud_t *pud;
 	unsigned long next;
-	pud = pud_offset(p4d, addr);
 
+	pud = pud_offset(p4d, addr);
 	do {
 		next = pud_addr_end(addr, end);
 		if (pud_trans_huge(*pud) || pud_devmap(*pud)) {
 			if (next - addr != HPAGE_PUD_SIZE) {
 				VM_BUG_ON_VMA(!rwsem_is_locked(&tlb->mm->mmap_sem), vma);
 				split_huge_pud(vma, pud, addr);
-			} else if (zap_huge_pud(tlb, vma, pud, addr)) {
+			} else if (zap_huge_pud(tlb, vma, pud, addr))
 				continue;
-			}
 		}
 		if (pud_none_or_clear_bad(pud))
 			continue;
@@ -5063,8 +5077,11 @@ static inline unsigned long rewind_pud_walk(struct mmu_gather *tlb, struct vm_ar
 	return addr;
 }
 
-static inline unsigned long rewind_p4d_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		pgd_t *pgd, unsigned long addr, unsigned long end, unsigned long rewind_flag) {
+static inline unsigned long rewind_p4d_walk(struct mmu_gather *tlb,
+				struct vm_area_struct *vma, pgd_t *pgd,
+				unsigned long addr, unsigned long end,
+				unsigned long rewind_flag)
+{
 	p4d_t *p4d;
 	unsigned long next;
 
@@ -5079,14 +5096,17 @@ static inline unsigned long rewind_p4d_walk(struct mmu_gather *tlb, struct vm_ar
 	return addr;
 }
 
-void rewind_pgd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		unsigned long addr, unsigned long end, unsigned long rewind_flag) {
-	struct mm_struct *mm = vma->vm_mm;
+void rewind_pgd_walk(struct mmu_gather *tlb,
+			struct vm_area_struct *vma,
+			unsigned long addr, unsigned long end, 
+			unsigned long rewind_flag)
+{
 	pgd_t *pgd;
 	unsigned long next;
 
+	BUG_ON(addr >= end);
 	tlb_start_vma(tlb, vma);
-	pgd = pgd_offset(mm, addr);
+	pgd = pgd_offset(vma->vm_mm, addr);
 	do {
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(pgd))
@@ -5096,19 +5116,21 @@ void rewind_pgd_walk(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	tlb_end_vma(tlb, vma);
 }
 
-void copy_pgt(struct mm_struct *mm, unsigned int rewind_flag) {
+void copy_pgt(struct mm_struct *mm, unsigned int rewind_flag)
+{
 	struct vm_area_struct *vma = mm->mmap;
 	struct mmu_gather tlb;
 	struct mmu_notifier_range range;
 
+	lru_add_drain();
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, vma->vm_mm, 0, -1);
 	tlb_gather_mmu(&tlb, mm, 0, -1);
-	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0 , vma, vma->vm_mm, 0, -1);
 	mmu_notifier_invalidate_range_start(&range);
 
 	for (; vma; vma = vma->vm_next) {
 		current->rewind_total_vma++;
-		if (rewind_flag == 1 && vma->rewind > 0) {
-			if (vma->rewindable == 1 && current->rewind_cnt < vma->rewind+3) {
+		if (rewind_flag == DO_REWIND && vma->rewind > 0) {
+			if (vma->rewindable == 1 && current->rewind_cnt < vma->rewind + 3) {
 				vma->rewind_used = 0;
 				current->rewind_unused_vma++;
 				current->rewind_reusable_size += vma->anon_size;
@@ -5119,7 +5141,7 @@ void copy_pgt(struct mm_struct *mm, unsigned int rewind_flag) {
 				vma->rewindable = 0;
 				vm_munmap(vma->vm_start, vma->vm_end - vma->vm_start);
 				vma = prev;
-				current->rewind_unmap += rdtsc()-tmp;
+				current->rewind_unmap += rdtsc() - tmp;
 				continue;
 			}
 		}
