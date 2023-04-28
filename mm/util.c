@@ -500,6 +500,15 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 		if (populate)
 			mm_populate(ret, populate);
 	}
+
+	/*
+	 * TODO:
+	 * The code for DEBUG
+	 * Should be removed
+	 */
+	if (mm->owner->rewindable == 1)
+		printk(KERN_INFO "REWIND mmap (vm_mmap_pgoff address: %lu\n", ret);
+
 	return ret;
 }
 
