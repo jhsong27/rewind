@@ -1802,7 +1802,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/* REWIND: reuse rewound anonymous VMA */
 	if (mm->owner && mm->owner->rewind_cnt > 0 && !file && (vm_flags & VM_NO_ADDR)) {
 		struct vm_area_struct *iter_vma;
-		printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n");
+		printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n", len);
 
 		for (iter_vma = mm->mmap; iter_vma; iter_vma = iter_vma->vm_next) {
 			printk(KERN_INFO "REWIND VMA: target size is %lu\n", iter_vma->vm_end - iter_vma->vm_start);
