@@ -1767,6 +1767,14 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	struct rb_node **rb_link, *rb_parent;
 	unsigned long charged = 0;
 
+	/*
+	 * TODO:
+	 * Code for DEBUG
+	 * Should be removed
+	 */
+	if (mm->owner->rewindable == 1)
+		printk(KERN_INFO "mmap_region\n");
+
 	/* Check against address space limit. */
 	if (!may_expand_vm(mm, vm_flags, len >> PAGE_SHIFT)) {
 		unsigned long nr_pages;
@@ -2305,6 +2313,12 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	/* Careful about overflows.. */
 	if (len > TASK_SIZE)
 		return -ENOMEM;
+
+	/*
+	 * TODO:
+	 * Code for DEBUG
+	 * Should be removed
+	 */
 
 	get_area = current->mm->get_unmapped_area;
 	if (file) {
