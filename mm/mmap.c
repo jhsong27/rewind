@@ -1651,6 +1651,12 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
 	retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);
+	/*
+	 * TODO:
+	 * The code for DEBUG
+	 * Should be removed
+	 */
+	printk(KERN_INFO "REWIND mmap (ksys_mmap_pgoff) address: %lu\n", retval)
 out_fput:
 	if (file)
 		fput(file);
