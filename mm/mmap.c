@@ -1656,7 +1656,7 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	 * The code for DEBUG
 	 * Should be removed
 	 */
-	printk(KERN_INFO "REWIND mmap (ksys_mmap_pgoff) address: %lu\n", retval)
+	printk(KERN_INFO "REWIND mmap (ksys_mmap_pgoff) address: %lu\n", retval);
 out_fput:
 	if (file)
 		fput(file);
