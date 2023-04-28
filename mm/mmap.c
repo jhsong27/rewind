@@ -1404,7 +1404,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 {
 	struct mm_struct *mm = current->mm;
 	int pkey = 0;
-	unsigned long orig_addr = addr;		// For REWIND operation
+	unsigned long mmap_req_addr = addr;		// For REWIND operation
 
 	*populate = 0;
 
@@ -1578,13 +1578,13 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	}
 
 	/* For REWIND operation */
-	if (mm->owner && mm->owner->rewind_cnt > 0 && orig_addr == 0 && !file)
+	if (mm->owner && mm->owner->rewind_cnt > 0 && mmap_req_addr == 0 && !file)
 		vm_flags = vm_flags | VM_NO_ADDR;
 
 	addr = mmap_region(file, addr, len, vm_flags, pgoff, uf);
 
 	/* For REWIND operation */
-	if (mm->owner && mm->owner->rewind_cnt > 0 && orig_addr == 0 && !file)
+	if (mm->owner && mm->owner->rewind_cnt > 0 && mmap_req_addr == 0 && !file)
 		vm_flags = (vm_flags & (~(VM_NO_ADDR)));
 
 	if (!IS_ERR_VALUE(addr) &&
@@ -1594,7 +1594,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 
 	/* For REWIND operation */
 	if (mm->owner && mm->owner->rewind_cnt > 0) {
-		if (orig_addr == 0 && !file) {
+		if (mmap_req_addr == 0 && !file) {
 			struct vm_area_struct *vma;
 
 			vma = find_vma(mm, addr);
@@ -1767,14 +1767,6 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	struct rb_node **rb_link, *rb_parent;
 	unsigned long charged = 0;
 
-	/*
-	 * TODO:
-	 * Code for DEBUG
-	 * Should be removed
-	 */
-	if (mm->owner->rewindable == 1)
-		printk(KERN_INFO "mmap_region\n");
-
 	/* Check against address space limit. */
 	if (!may_expand_vm(mm, vm_flags, len >> PAGE_SHIFT)) {
 		unsigned long nr_pages;
@@ -1810,8 +1802,10 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/* REWIND: reuse rewound anonymous VMA */
 	if (mm->owner && mm->owner->rewind_cnt > 0 && !file && (vm_flags & VM_NO_ADDR)) {
 		struct vm_area_struct *iter_vma;
+		printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n");
 
 		for (iter_vma = mm->mmap; iter_vma; iter_vma = iter_vma->vm_next) {
+			printk(KERN_INFO "REWIND VMA: target size is %lu\n", iter_vma->vm_end - iter_vma->vm_start);
 			if (iter_vma->rewind_used == 0
 					&& iter_vma->rewindable == 1
 					&& !iter_vma->vm_file
@@ -1836,11 +1830,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 						addr, vma->vm_end - vma->vm_start);
 
 				goto reuse;
-
 			}
-
 		}
-
 	}
 
 	/* REWIND: pass the path after checkpoint */
@@ -2313,12 +2304,6 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	/* Careful about overflows.. */
 	if (len > TASK_SIZE)
 		return -ENOMEM;
-
-	/*
-	 * TODO:
-	 * Code for DEBUG
-	 * Should be removed
-	 */
 
 	get_area = current->mm->get_unmapped_area;
 	if (file) {
