@@ -315,12 +315,19 @@ struct vm_area_struct {
 	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
 	unsigned long vm_flags;		/* Flags, see mm.h. */
 
-	unsigned int rewind;		/* REWIND counter: 0 is VMA before checkpoint, 1~ is VMA after checkpoint.*/
-	unsigned int rewind_used;	/* Used VMA check for rewindable VMA: 0 is used VMA, 1 is unused now. */
-	unsigned int rewindable;	/* Is VMA is reusable? (My process's VMA & anon VMA with create after checkpoint) */
-	unsigned long rewind_flags;	/* Starting flags for REWIND (for reusable check).*/
-
-	unsigned long anon_size;
+	unsigned int rewind;		/* REWIND counter.
+					 * 0 is VMA before checkpoint,
+					 * 1~ is VMA after checkpoint.
+					 */
+	unsigned int rewind_used;	/* Used VMA check for rewindable VMA
+					 *  0 is used VMA, 1 is unused now.
+					 */
+	unsigned int rewindable;	/* Is VMA is reusable?
+					 * My process's VMA & anon VMA with creation
+					 * after checkpoint)
+					 */
+	unsigned long rewind_flags;	/* Starting flags for REWIND for reusable check.*/
+	unsigned long anon_size;	/* For counting at REWIND */
 	pid_t pid;			/* Validate my mmap region for REWIND */
 
 	/*

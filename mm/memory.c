@@ -4880,12 +4880,6 @@ void ptlock_free(struct page *page)
 #endif
 
 /* For REWIND operation */
-//unsigned long long tmp_pgd;
-//unsigned long long tmp_p4d;
-//unsigned long long tmp_pud;
-//unsigned long long tmp_pmd;
-//unsigned long long tmp_pte;
-
 static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
@@ -4925,13 +4919,19 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
 			tmp = rdtsc();
 			if (pte_write(*rpte)) {
 				if (!(pte_flags(*rpte) & _PAGE_SOFTW2))
-					printk(KERN_INFO "REWIND(pte): Not rewindable rewind pte(w)... 0x%lx / 0x%lx\n",
+					printk(KERN_INFO "REWIND(pte): \
+							Not rewindable rewind pte(w)... \
+							0x%lx / 0x%lx\n",
 							pte_val(*pte),pte_val(*rpte));
 				if (pte_pfn(*rpte) != pte_pfn(*pte)) {
 					if (pte_write(*pte)) {
 						// w-w' Rewindable write page is erased...
-						printk(KERN_INFO "REWIND(pte): writable rewind page erased... 0x%lx / 0x%lx\n",
-								pte_val(*pte),pte_val(*rpte));
+						printk(KERN_INFO "REWIND(pte): \
+								writable rewind page \
+								erased... 0x%lx \
+								/ 0x%lx\n",
+								pte_val(*pte),
+								pte_val(*rpte));
 					}
 					// w-r Nothing to do
 				} else {
@@ -4953,8 +4953,12 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
 				}
 			} else {
 				if (pte_flags(*rpte) & _PAGE_SOFTW2) {
-					//printk(KERN_INFO "REWIND(pte): Rewindable rewind pte(r)... 0x%lx / 0x%lx\n",
-					//			pte_val(*pte),pte_val(*rpte));
+					/*
+					printk(KERN_INFO "REWIND(pte): \
+							Rewindable rewind pte(r)... \
+							0x%lx / 0x%lx\n",
+							pte_val(*pte),pte_val(*rpte));
+					*/
 					// May be zero page ...?
 				}
 
@@ -4965,15 +4969,21 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
 						pg = pte_page(*pte);
 						set_pte_at(mm, addr, pte, *rpte);
 					} else {
-						// r-w0 switch and clearing -> copy data into writable page (previous method)
+						/* r-w0 switch and clearing 
+						 * -> copy data into 
+						 * writable page (previous method)
+						 */
 						// simply copy original data into cow page
 						copy_page = 1;
 					}
 				} else {
 					if (pte_write(*pte)) {
 						// r-w but same pfn...
-						printk(KERN_INFO "REWIND(pte): Something wrong at wp 0x%lx / 0x%lx\n",
-								pte_val(*pte),pte_val(*rpte));
+						printk(KERN_INFO "REWIND(pte): \
+								Something wrong at wp \
+								0x%lx / 0x%lx\n",
+								pte_val(*pte),
+								pte_val(*rpte));
 					} else {
 						// r-r update status (flags)
 						set_pte_at(mm, addr, rpte, *pte);
@@ -5000,7 +5010,8 @@ static unsigned long rewind_pte_walk(struct mmu_gather *tlb,
 				put_page(pg);
 				current->rewind_page_erase_cnt++;
 			} else if (copy_page == 1) {
-				copy_user_highpage(pte_page(*pte), pte_page(*rpte), addr, vma);
+				copy_user_highpage(pte_page(*pte),
+						pte_page(*rpte), addr, vma);
 				current->rewind_page_cow_cnt++;
 			}
 			clear_time += rdtsc() - tmp;
@@ -5129,8 +5140,39 @@ void copy_pgt(struct mm_struct *mm, unsigned int rewind_flag)
 
 	for (; vma; vma = vma->vm_next) {
 		current->rewind_total_vma++;
+		/*
+		 * TODO:
+		 * Code for DEBUG
+		 * Should be removed
+		 */
+		/*
+		printk(KERN_INFO "copy_pgt: \
+				vm_start: %lu, vm_end: %lu, size: %lu, vm_flags: %lu, vm_pgoff: %lu\n",
+				vma->vm_start, vma->vm_end,
+				vma->vm_end - vma->vm_start, vma->vm_flags,
+				vma->vm_pgoff);
+
+		*/
+		/*
+		if (vma->rewind_splitted) {
+			struct vm_area_struct *next = vma->vm_next;
+
+			if (next && next->rewind_splitted
+					&& vma->rewind_start == next->rewind_start
+					&& vma->rewind_end == next->rewind_end
+					&& vma->rewind_end <= next->vm_end) {
+				vma_merge(mm, vma, vma->rewind_start,
+						next->vm_end, vma->vm_flags,
+						next->anon_vma, next->vm_file,
+						pgoff, vma_policy(vma), NULL_VM_UFFD_CTX);
+
+			}
+		}
+		*/
+
 		if (rewind_flag == DO_REWIND && vma->rewind > 0) {
-			if (vma->rewindable == 1 && current->rewind_cnt < vma->rewind + 3) {
+			if (vma->rewindable == 1
+					&& current->rewind_cnt < vma->rewind + 3) {
 				vma->rewind_used = 0;
 				current->rewind_unused_vma++;
 				current->rewind_reusable_size += vma->anon_size;

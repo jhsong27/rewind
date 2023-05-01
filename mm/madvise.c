@@ -71,6 +71,16 @@ static long madvise_behavior(struct vm_area_struct *vma,
 	pgoff_t pgoff;
 	unsigned long new_flags = vma->vm_flags;
 
+	/*
+	 * TODO:
+	 * Code for DEBUG
+	 * Should be removed
+	 */
+	if (mm->owner->rewindable == 1)
+		printk(KERN_INFO "madvise_behavior: \
+				vm_start: %lu, vm_end: %lu, start: %lu, end: %lu, behavior: %d\n",
+				vma->vm_start, vma->vm_end, start, end, behavior);
+
 	switch (behavior) {
 	case MADV_NORMAL:
 		new_flags = new_flags & ~VM_RAND_READ & ~VM_SEQ_READ;
@@ -1053,6 +1063,12 @@ SYSCALL_DEFINE3(madvise, unsigned long, start, size_t, len_in, int, behavior)
 	int write;
 	size_t len;
 	struct blk_plug plug;
+
+	/*
+	 * For REWIND operation
+	 */
+	if (current->mm->rewindable == 1 && behavior == MADV_HUGEPAGE)
+		return 0;
 
 	start = untagged_addr(start);
 

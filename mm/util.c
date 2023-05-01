@@ -506,13 +506,12 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 	 * The code for DEBUG
 	 * Should be removed
 	 */
+	/*
 	if (mm->owner->rewindable == 1) {
-		if (addr)
-			printk(KERN_INFO "REWIND mmap (vm_mmap_pgoff) address: %lu, req_addr: %lu, size: %lu, prot: %lu, flag: %lu, pgoff: %lu\n", ret, addr, len, prot, flag, pgoff);
-		else
-			printk(KERN_INFO "REWIND mmap (vm_mmap_pgoff) address: %lu, req_addr: NULL, size: %lu, prot: %lu, flag: %lu, pgoff: %lu\n", ret, len, prot, flag, pgoff);
+		printk(KERN_INFO "REWIND mmap (vm_mmap_pgoff) address: %lu, req_addr: NULL, size: %lu, prot: %lu, flag: %lu, pgoff: %lu\n", ret, len, prot, flag, pgoff);
 	
 	}
+	*/
 
 	return ret;
 }

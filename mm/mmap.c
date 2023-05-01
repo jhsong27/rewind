@@ -1598,6 +1598,16 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			struct vm_area_struct *vma;
 
 			vma = find_vma(mm, addr);
+			/*
+			 * TODO:
+			 * Code for DEBUG
+			 * Should be removed
+			 */
+			/*
+			if (vma)
+				printk(KERN_INFO "mm->owner->rewind_cnt: %d, vma->rewind: %d, vma->vm_start: %lu, vma->vm_end: %lu, vma_size: %lu\n", mm->owner->rewind_cnt, vma->rewind, vma->vm_start, vma->vm_end, vma->vm_end - vma->vm_start);
+
+			*/
 			if (vma && mm->owner->pid == current->pid)
 				vma->rewindable = 1;
 		}
@@ -1802,10 +1812,10 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/* REWIND: reuse rewound anonymous VMA */
 	if (mm->owner && mm->owner->rewind_cnt > 0 && !file && (vm_flags & VM_NO_ADDR)) {
 		struct vm_area_struct *iter_vma;
-		printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n", len);
+		//printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n", len);
 
 		for (iter_vma = mm->mmap; iter_vma; iter_vma = iter_vma->vm_next) {
-			printk(KERN_INFO "REWIND VMA: target size is %lu\n", iter_vma->vm_end - iter_vma->vm_start);
+			//printk(KERN_INFO "REWIND VMA: target size is %lu\n", iter_vma->vm_end - iter_vma->vm_start);
 			if (iter_vma->rewind_used == 0
 					&& iter_vma->rewindable == 1
 					&& !iter_vma->vm_file
@@ -1826,9 +1836,10 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 				 * The code for DEBUG
 				 * Should be removed
 				 */
+				/*
 				printk(KERN_INFO "REWIND VMA REUSE: returned mmap address is %lu, size is %lu\n",
 						addr, vma->vm_end - vma->vm_start);
-
+				*/
 				goto reuse;
 			}
 		}
@@ -2762,6 +2773,19 @@ int __split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *new;
 	int err;
 
+	/*
+	 * TODO:
+	 * Code for DEBUG
+	 * Should be removed
+	 */
+	/*
+	if (mm->owner->rewindable == 1)
+		printk(KERN_INFO "__split_vma: vm_start: %lu, vm_end: %lu, size: %lu, vm_flags: %lu, vm_pgoff: %lu, addr: %lu, new_below: %d\n",
+				vma->vm_start, vma->vm_end,
+				vma->vm_end - vma->vm_start, vma->vm_flags,
+				vma->vm_pgoff, addr, new_below);
+	*/
+
 	if (vma->vm_ops && vma->vm_ops->split) {
 		err = vma->vm_ops->split(vma, addr);
 		if (err)
@@ -2861,7 +2885,8 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 		return 0;
 
 	/* For REWIND operation
-	 * Do nothing if anonymous vma that create after checkpoint (keep this vma and reuse it)
+	 * Do nothing if anonymous vma that create after checkpoint
+	 * (keep this vma and reuse it)
 	 * unmap when this process after start of the "do_exit"
 	 */
 
@@ -3015,8 +3040,9 @@ SYSCALL_DEFINE5(remap_file_pages, unsigned long, start, unsigned long, size,
 	unsigned long ret = -EINVAL;
 	struct file *file;
 
-	pr_warn_once("%s (%d) uses deprecated remap_file_pages() syscall. See Documentation/vm/remap_file_pages.rst.\n",
-		     current->comm, current->pid);
+	pr_warn_once("%s (%d) uses deprecated remap_file_pages() syscall. \
+			See Documentation/vm/remap_file_pages.rst.\n",
+			current->comm, current->pid);
 
 	if (prot)
 		return ret;
@@ -3106,7 +3132,8 @@ out:
  *  anonymous maps.  eventually we may be able to do some
  *  brk-specific accounting here.
  */
-static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long flags, struct list_head *uf)
+static int do_brk_flags(unsigned long addr, unsigned long len,
+		unsigned long flags, struct list_head *uf)
 {
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma, *prev;
@@ -3413,11 +3440,12 @@ bool may_expand_vm(struct mm_struct *mm, vm_flags_t flags, unsigned long npages)
 		    mm->data_vm + npages <= rlimit_max(RLIMIT_DATA) >> PAGE_SHIFT)
 			return true;
 
-		pr_warn_once("%s (%d): VmData %lu exceed data ulimit %lu. Update limits%s.\n",
-			     current->comm, current->pid,
-			     (mm->data_vm + npages) << PAGE_SHIFT,
-			     rlimit(RLIMIT_DATA),
-			     ignore_rlimit_data ? "" : " or use boot option ignore_rlimit_data");
+		pr_warn_once("%s (%d): VmData %lu exceed data ulimit %lu. \
+				Update limits%s.\n",
+				current->comm, current->pid,
+				(mm->data_vm + npages) << PAGE_SHIFT,
+				rlimit(RLIMIT_DATA),
+				ignore_rlimit_data ? "" : " or use boot option ignore_rlimit_data");
 
 		if (!ignore_rlimit_data)
 			return false;
