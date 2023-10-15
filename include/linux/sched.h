@@ -734,6 +734,8 @@ struct task_struct {
 
 	unsigned int                    child_print;
 	unsigned int                    exit_print;
+	
+	unsigned int                    rewind_nr_threads;
 
 	unsigned long long              rewind_pte;
 	unsigned long long              rewind_clear;
