@@ -19,6 +19,8 @@ static void rewind_threads(void)
 	if (current->rewind_nr_threads == get_nr_threads(current))
 		return;
 
+	printk(KERN_INFO "REWIND(threads): checkpoint %u, current %u\n", current->rewind_nr_threads, get_nr_threads(current));
+
 	err = rewind_de_thread(current);
 	if (err) {
 		printk(KERN_INFO "REWIND(RW): de thread error %d\n", err);
@@ -34,6 +36,7 @@ static void rewind_threads(void)
 SYSCALL_DEFINE1(checkpoint, unsigned long __user, num)	// syscall(548)
 {
 	struct task_struct *tsk = current;
+	unsigned long flags;
 	unsigned long long tmp;
 
 	printk(KERN_INFO "REWIND(CHK): Current task(%d,%d) is rewindable!\n", current->pid, current->tgid);
@@ -45,13 +48,16 @@ SYSCALL_DEFINE1(checkpoint, unsigned long __user, num)	// syscall(548)
 	tsk->rewind_pte_cnt = 0;
 	tsk->mm->rewindable = 1;
 
-	tsk->rewind_nr_threads = get_nr_threads(tsk);
-
+	if (lock_task_sighand(tsk, &flags)) {
+		tsk->rewind_nr_threads = get_nr_threads(tsk);
+		unlock_task_sighand(tsk, &flags);
+	}
+	
 	copy_pgt(tsk->mm, DO_CHECKPOINT);
 
 	tmp = rdtsc() - tmp;
 
-	printk(KERN_INFO "REWIND(CHK): Takes %llu ns, pte_cnt %lu\n", tmp, tsk->rewind_pte_cnt);
+	printk(KERN_INFO "REWIND(CHK): Takes %llu ns, pte_cnt %ld, nr_threads %u\n", tmp, tsk->rewind_pte_cnt, tsk->rewind_nr_threads);
 
 	tsk->rewind_vma_reuse = 0;
 	tsk->rewind_vma_alloc = 0;
@@ -64,7 +70,7 @@ SYSCALL_DEFINE1(rewind, unsigned long __user, num)	// syscall(549)
 	struct task_struct *tsk = current;
 	unsigned long long tmp, tmpt;
 
-	printk(KERN_INFO "REWIND(RW): REWIND start time %llu\n", ktime_get_real_ns());
+	//printk(KERN_INFO "REWIND(RW): REWIND start time %llu\n", ktime_get_real_ns());
 	
 	rewind_threads();
 	
@@ -94,12 +100,13 @@ SYSCALL_DEFINE1(rewind, unsigned long __user, num)	// syscall(549)
 	tmp = rdtsc()-tmp;
 	tmpt = ktime_get_ns() - tmpt;
 
+	printk(KERN_INFO "REWIND(RW): Total_time=%llu, ktime=%llu\n", tmp, tmpt);
 	//printk(KERN_INFO "REWIND(RW): End time=%llu, Total_time=%llu, VMA_Unmap=%llu, PTE_copy=%llu, Page_clear=%llu, Flush=%llu, ktime=%llu\n", ktime_get_real_ns(), tmp, tsk->rewind_unmap, tsk->rewind_pte, tsk->rewind_clear, tsk->rewind_flush, tmpt);
 	//printk(KERN_INFO "REWIND(RW): Clear_page=%lu, Access_pte=%lu Erase_page=%lu Cow_page=%lu\n", tsk->rewind_page_cnt, tsk->rewind_pte_cnt, tsk->rewind_page_erase_cnt, tsk->rewind_page_cow_cnt);
 	//printk(KERN_INFO "REWIND(vma): Total=%lu, rewinds=%lu, unused_set=%lu\n", tsk->rewind_total_vma, tsk->rewind_vma, tsk->rewind_unused_vma);
 	//printk(KERN_INFO "REIWND(ptw): PGD=%llu, P4D=%llu, PUD=%llu, PMD=%llu, PTE=%llu\n",
-	printk(KERN_INFO "REWIND(alloc_vma): vma_alloc=%lu, vma_reuse=%lu\n", tsk->rewind_vma_alloc, tsk->rewind_vma_reuse);
-	printk(KERN_INFO "REWIND(reuse): %lu(current) / %lu(next)", tsk->rewind_reused_size, tsk->rewind_reusable_size);
+	//printk(KERN_INFO "REWIND(alloc_vma): vma_alloc=%lu, vma_reuse=%lu\n", tsk->rewind_vma_alloc, tsk->rewind_vma_reuse);
+	//printk(KERN_INFO "REWIND(reuse): %lu(current) / %lu(next)", tsk->rewind_reused_size, tsk->rewind_reusable_size);
 	tsk->rewind_vma_reuse = 0;
         tsk->rewind_vma_alloc = 0;
 	tsk->rewind_reused_page = 0;
@@ -111,7 +118,7 @@ SYSCALL_DEFINE1(rewind, unsigned long __user, num)	// syscall(549)
 SYSCALL_DEFINE0(rewindable)	// syscall(550)
 {
 	printk(KERN_INFO "REWIND(able): Test rewind_parent become 1\n");
-	current->rewind_parent = 1;
+	current->real_parent->rewind_parent = 1;
 	printk(KERN_INFO "REWIND(able): rewind_parent = %u, rewindable = %u\n", current->rewind_parent, current->rewindable);
 	
 	return 0;

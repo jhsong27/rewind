@@ -2100,6 +2100,9 @@ static __latent_entropy struct task_struct *copy_process(
 		p->rewind_cp = 0;
 	}
 
+	p->rewindable = 1;
+	p->rewind_cp = 1;
+
 	p->rewind_time = 0;
 	p->rewind_parent = 0;
 	p->rewind_cnt = 0;

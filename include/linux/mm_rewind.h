@@ -23,7 +23,7 @@ extern int dup_rewind_pgd(struct mm_struct *mm, unsigned int flag);
 extern void add_on_rewind_list(struct vm_fault *vmf);
 extern int rewinder_init(void);
 extern int rewind_de_thread(struct task_struct *tsk);
-
+extern unsigned long rewind_mremap(unsigned long addr, unsigned long old_len, unsigned long new_len, unsigned long flags, unsigned long new_addr);
 extern pgd_t *rewind_pgd_alloc(struct mm_struct *mm);
 
 extern void pf_add_rewind_list(struct vm_fault *vmf, unsigned int rewindable, unsigned int flag);

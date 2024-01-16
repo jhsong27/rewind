@@ -1812,6 +1812,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/* REWIND: reuse rewound anonymous VMA */
 	if (mm->owner && mm->owner->rewind_cnt > 0 && !file && (vm_flags & VM_NO_ADDR)) {
 		struct vm_area_struct *iter_vma;
+		struct vm_area_struct *rsrv_vma = NULL;
+		long rsrv_diff, iter_diff;
 		//printk(KERN_INFO "REWIND VMA REUSE Start, len: %lu\n", len);
 
 		for (iter_vma = mm->mmap; iter_vma; iter_vma = iter_vma->vm_next) {
@@ -1819,31 +1821,90 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 			if (iter_vma->rewind_used == 0
 					&& iter_vma->rewindable == 1
 					&& !iter_vma->vm_file
-					&& len == (iter_vma->vm_end - iter_vma->vm_start)
 					&& iter_vma->rewind_flags == (vm_flags & ~(VM_NO_ADDR))) {
-				addr = iter_vma->vm_start;
-				iter_vma->rewind_used = 1;
-				iter_vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));
-				iter_vma->rewind = mm->owner->rewind_cnt;
-				vma = iter_vma;
-				reuse_vma_clear(vma);
+				if (len == (iter_vma->vm_end - iter_vma->vm_start)) {
+					addr = iter_vma->vm_start;
+					iter_vma->rewind_used = 1;
+					iter_vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));
+					iter_vma->rewind = mm->owner->rewind_cnt;
+					vma = iter_vma;
+					reuse_vma_clear(vma);
+					
+					mm->owner->rewind_vma_reuse++;
+					mm->owner->rewind_reused_size += vma->anon_size;
+					
+					goto reuse;
+				} else {
+					if (rsrv_vma == NULL) {
+						rsrv_vma = iter_vma;
+						rsrv_diff = abs((rsrv_vma->vm_end - rsrv_vma->vm_start) - len);
+					} else {
+						iter_diff = abs((iter_vma->vm_end - iter_vma->vm_start) - len);
+						if (rsrv_diff > iter_diff) {
+							rsrv_vma = iter_vma;
+							rsrv_diff = iter_diff;
+						}
+					}
+				}
+			}
+		}
 
+		/* Check mremap */
+		if (rsrv_vma != NULL) {
+			unsigned long old_len = rsrv_vma->vm_end - rsrv_vma->vm_start;
+			long size_diff = len - old_len;
+
+			if (size_diff > 0) {
+				/*
+				int pages = size_diff >> PAGE_SHIFT;
+
+				if (vma_adjust(rsrv_vma, rsrv_vma->vm_start, rsrv_vma->vm_end + size_diff, rsrv_vma->vm_pgoff, NULL))
+					goto no_expand_reuse;
+				vm_stat_account(mm, rsrv_vma->vm_flags, pages);
+				*/
+				//goto no_expand_reuse;
+				unsigned long new_addr;
+				//printk(KERN_INFO "rsrv_vma->vm_start: %lu, old_len: %lu, len: %lu\n", rsrv_vma->vm_start, old_len, len);
+				new_addr = rewind_mremap(rsrv_vma->vm_start, old_len, len, MREMAP_MAYMOVE, 0);
+				printk(KERN_INFO "new_addr: %lu\n", new_addr);
+				if (!IS_ERR_VALUE(new_addr)) {
+					struct vm_area_struct *new_vma = find_vma(mm, new_addr);
+
+					//printk(KERN_INFO "DEBUG 1\n");
+					addr = new_vma->vm_start;
+					new_vma->rewind_used = 1;
+					new_vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));
+					new_vma->rewind = mm->owner->rewind_cnt;
+					vma = new_vma;
+					reuse_vma_clear(vma);
+					//printk(KERN_INFO "DEBUG 2\n");
+
+					mm->owner->rewind_vma_reuse++;
+					mm->owner->rewind_reused_size += vma->anon_size;
+					//printk(KERN_INFO "DEBUG 3\n");
+
+					goto reuse;
+				}
+			} else {
+				//printk(KERN_INFO "rsrv_vma->vm_start: %lu, old_len: %lu, len: %lu\n", rsrv_vma->vm_start, old_len, len);
+				addr = rsrv_vma->vm_start;
+				rsrv_vma->rewind_used = 1;
+				rsrv_vma->vm_flags = (vm_flags & (~(VM_NO_ADDR)));
+				rsrv_vma->rewind = mm->owner->rewind_cnt;
+				//printk(KERN_INFO "DEBUG 1\n");
+				vma = rsrv_vma;
+				reuse_vma_clear(vma);
+				//printk(KERN_INFO "DEBUG 2\n");
+				
 				mm->owner->rewind_vma_reuse++;
 				mm->owner->rewind_reused_size += vma->anon_size;
-
-				/* 
-				 * TODO:
-				 * The code for DEBUG
-				 * Should be removed
-				 */
-				/*
-				printk(KERN_INFO "REWIND VMA REUSE: returned mmap address is %lu, size is %lu\n",
-						addr, vma->vm_end - vma->vm_start);
-				*/
+				
 				goto reuse;
 			}
 		}
 	}
+
+no_expand_reuse:
 
 	/* REWIND: pass the path after checkpoint */
 	if (current->rewind_cnt < 1) {

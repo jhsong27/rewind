@@ -76,10 +76,12 @@ static long madvise_behavior(struct vm_area_struct *vma,
 	 * Code for DEBUG
 	 * Should be removed
 	 */
+	/*
 	if (mm->owner->rewindable == 1)
 		printk(KERN_INFO "madvise_behavior: \
 				vm_start: %lu, vm_end: %lu, start: %lu, end: %lu, behavior: %d\n",
 				vma->vm_start, vma->vm_end, start, end, behavior);
+	*/
 
 	switch (behavior) {
 	case MADV_NORMAL:
